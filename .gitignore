@@ -1,0 +1,31 @@
+.idea/
+*.iws
+*.iml
+*.ipr
+
+.project
+.classpath
+.settings/
+
+.nb-gradle/
+
+target/
+build/
+
+*.log
+
+application.properties
+application.yml
+
+*.swp
+*.swo
+
+.DS_Store  # Для macOS
+Thumbs.db  # Для Windows
+
+/.mvn/
+*.jar
+*.war
+*.ear
+*.class
+.gradle/
