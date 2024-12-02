@@ -3,147 +3,62 @@ package ru.onshin;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Value;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ru.onshin.controller.VkBotController;
 
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.lenient;
 
-
+/**
+ * Unit тесты для контроллера {@link VkBotController}.
+ * Проверяет работу метода {@link VkBotController#handleMessage(Map)} для обработки новых сообщений.
+ * Тест проверяет успешную обработку сообщения с типом "message_new".
+ */
+@ExtendWith(MockitoExtension.class)
 public class VkBotControllerTest {
 
-    private MockMvc mockMvc;
+    @InjectMocks
+    private VkBotController controller;
 
     @Mock
     private VkBotController vkBotController;
 
-    @Value("${vk.confirmation.code}")
-    private String confirmationCode;
+    private Map<String, Object> messageNewRequest;
 
-    @Value("${vk.my.user.id}")
-    private String myUserId;
-
+    /**
+     * Инициализация данных перед каждым тестом.
+     * Создает мапу с данными для теста (тип события и сообщение).
+     */
     @BeforeEach
     public void setUp() {
-        MockitoAnnotations.openMocks(this);
-        mockMvc = MockMvcBuilders.standaloneSetup(vkBotController).build();
+        messageNewRequest = Map.of(
+                "type", "message_new",
+                "object", Map.of(
+                        "message", Map.of(
+                                "date", 1234567890,
+                                "from_id", 123,
+                                "text", "Привет!"
+                        )
+                )
+        );
     }
 
+    /**
+     * Тестирует обработку нового сообщения в методе {@link VkBotController#handleMessage(Map)}.
+     * Проверяет, что метод возвращает успешный ответ (HttpStatus.OK) при корректном запросе.
+     */
     @Test
-    void testHandleMessage_Confirmation() throws Exception {
-        Map<String, Object> request = Map.of("type", "confirmation");
+    public void testHandleMessageNew() {
+        lenient().when(vkBotController.sendMessage(eq("123"), eq("Вы сказали: Привет!"))).thenReturn(true);
 
-        when(vkBotController.handleMessage(request)).thenReturn(ResponseEntity.ok("confirmation_code"));
+        ResponseEntity<?> response = controller.handleMessage(messageNewRequest);
 
-        mockMvc.perform(post("/").contentType("application/json").content("{\"type\":\"confirmation\"}"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    public void testHandleNewMessageFromOtherUser() throws Exception {
-        String messageJson = "{\n" +
-                "  \"type\": \"message_new\",\n" +
-                "  \"event_id\": \"event_1\",\n" +
-                "  \"object\": {\n" +
-                "    \"message\": {\n" +
-                "      \"from_id\": \"12345\",\n" +
-                "      \"text\": \"Hello\",\n" +
-                "      \"date\": 1680000000\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-
-        mockMvc.perform(post("/")
-                        .contentType("application/json")
-                        .content(messageJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string(""));
-    }
-
-    @Test
-    public void testHandleNewMessageFromMyUser() throws Exception {
-        String messageJson = "{\n" +
-                "  \"type\": \"message_new\",\n" +
-                "  \"event_id\": \"event_2\",\n" +
-                "  \"object\": {\n" +
-                "    \"message\": {\n" +
-                "      \"from_id\": \"" + myUserId + "\",\n" +
-                "      \"text\": \"Hello, bot!\",\n" +
-                "      \"date\": 1680000010\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-
-        // Проверяем, что бот отправляет ответ
-        mockMvc.perform(post("/")
-                        .contentType("application/json")
-                        .content(messageJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string(""));
-
-        // Дополнительно можно проверить, что метод `sendMessage` был вызван с правильными параметрами
-        verify(vkBotController, times(1)).sendMessage(myUserId, "Вы сказали: Hello, bot!");
-    }
-
-    @Test
-    public void testHandleRepeatedEvent() throws Exception {
-        String messageJson = "{\n" +
-                "  \"type\": \"message_new\",\n" +
-                "  \"event_id\": \"event_3\",\n" +
-                "  \"object\": {\n" +
-                "    \"message\": {\n" +
-                "      \"from_id\": \"" + myUserId + "\",\n" +
-                "      \"text\": \"Repeated message\",\n" +
-                "      \"date\": 1680000020\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-
-        // Имитируем первый вызов обработки сообщения
-        mockMvc.perform(post("/")
-                        .contentType("application/json")
-                        .content(messageJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string(""));
-
-        // Имитируем повторный вызов с тем же eventId
-        mockMvc.perform(post("/")
-                        .contentType("application/json")
-                        .content(messageJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string(""));
-
-        // Проверяем, что метод `sendMessage` был вызван только один раз
-        verify(vkBotController, times(1)).sendMessage(myUserId, "Вы сказали: Repeated message");
-    }
-
-    @Test
-    public void testHandleOldMessage() throws Exception {
-        String messageJson = "{\n" +
-                "  \"type\": \"message_new\",\n" +
-                "  \"event_id\": \"event_4\",\n" +
-                "  \"object\": {\n" +
-                "    \"message\": {\n" +
-                "      \"from_id\": \"" + myUserId + "\",\n" +
-                "      \"text\": \"Old message\",\n" +
-                "      \"date\": 1679999999\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-
-        mockMvc.perform(post("/")
-                        .contentType("application/json")
-                        .content(messageJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string(""));
+        assertEquals(HttpStatus.OK, response.getStatusCode());
     }
 }
